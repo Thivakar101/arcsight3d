@@ -67,7 +67,6 @@ class ProcessingThread(QThread):
 class MyWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-git add .
 
         self.setWindowTitle('Arc Sight 3D')
         self.setGeometry(100, 100, 1600, 1200)
