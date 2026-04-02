@@ -1,0 +1,43 @@
+QMainWindow {
+    background-color: #121212;
+    font-family: 'Arial', sans-serif;
+}
+QPushButton {
+    color: white;
+    background-color: #8A00C4;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 12pt;
+    font-weight: bold;
+}
+QPushButton:hover {
+    background-color: #a124dc;
+}
+QPushButton:disabled {
+    background-color: #555555;
+    color: #aaaaaa;
+}
+QProgressBar {
+    color: white;
+    background-color: #2D2D2D;
+    border-radius: 4px;
+    font-size: 10pt;
+    text-align: center;
+    font-weight: bold;
+}
+QProgressBar::chunk {
+    background-color: #EFB11D;
+    border-radius: 4px;
+}
+QLabel {
+    color: white;
+    font-family: 'Arial', sans-serif;
+    font-size: 11pt;
+}
+QLineEdit, QTextEdit {
+    background-color: #2D2D2D;
+    color: white;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 5px;
+}

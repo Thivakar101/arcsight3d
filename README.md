@@ -1,105 +1,104 @@
-# Arc Sight 3D - 2D Floor Plan to 3D Blender Reconstructor
+# ArcSight 3D
 
-**Arc Sight 3D** is a lightweight toolset designed to bridge the gap between 2D architectural floor plan images (blueprints) and 3D scenes in Blender. Using computer vision (OpenCV) and Blender's Python API (`bpy` and `bmesh`), it extracts walls and doors from 2D images and reconstructs them in 3D space.
+ArcSight 3D is an automated pipeline designed to convert 2D architectural floor plans into fully explorable 3D models. 
 
-Whether you have a scanned JPEG/PNG of a blueprint or want to programmatically generate maps in Blender, this project provides clean pipelines to automate the heavy lifting.
-
----
-
-## How It Works
-
-Arc Sight 3D offers two main processing pipelines, plus a procedural layout demonstration:
-
-### Pipeline 1: Contour-Based Detection (GUI)
-*Best for floor plans with thick/filled walls.*
-1. **Analyze:** Run the desktop application `detector_gui.py`. Select your blueprint image, and click **Start Processing**.
-2. **Process:** The script performs adaptive thresholding, applies morphological closing to fill gaps, and extracts contours. It filters noise and classifies shapes as either `wall` or `door` based on aspect ratio and bounding box geometry.
-3. **Save:** The detected elements are saved as a clean dataset in `detected_objects.json`.
-4. **Build:** Open the Blender project, load `blender_contour_builder.py` into the text editor, and run it. It reads `detected_objects.json` and builds solid 3D walls and doors matching the plan.
-
-### Pipeline 2: Line-Based Vector Extraction (CLI)
-*Best for wireframes and thin single-line blueprints.*
-1. **Analyze:** Run `line_detector.py` from your command line, pointing to a blueprint image.
-2. **Process:** It runs a Gaussian blur, Canny edge detection, and a Hough Lines Transform. The script then applies an angle/distance filter to merge redundant parallel lines into clean single-line vectors.
-3. **Save:** The line segments are saved as starting/ending coordinate pairs in `line_coordinates.json`.
-4. **Build:** Run `blender_line_builder.py` inside Blender to instantiate flat 3D plane walls along those line vectors.
-
-### Bonus: Procedural Map Level Designer
-*Demonstrates manual 3D generation.*
-* Running `blender_procedural_map.py` inside Blender procedurally generates a game-like level layout (walls and door cutouts) using coordinate arrays. It showcases how to use Blender's Boolean modifier to carve door gaps out of solid wall meshes.
+By integrating computer vision and optical character recognition, ArcSight 3D aims to eliminate the manual labor of reconstructing a building's geometry from a flat blueprint. It reads the lines and text of a floor plan, uses those findings to procedurally generate a 3D scene in Blender, and exports the result for real-time visualization in Unity.
 
 ---
 
-## File Directory
+## How the System Works
 
-```
-arcsight3d/
-├── samples/                       # Sample blueprint images for testing
-│   ├── 0001.jpg
-│   ├── blue.png
-│   ├── print.png
-│   └── typical.jpg (etc.)
-├── detector_gui.py                # Desktop GUI for contour detection (PyQt5 + OpenCV)
-├── line_detector.py               # Command-line line detector (OpenCV)
-├── blender_contour_builder.py     # Blender script to build 3D mesh walls from contours
-├── blender_line_builder.py        # Blender script to build 3D plane walls from line vectors
-├── blender_procedural_map.py      # Blender script for procedural map generation with doors
-├── 3D.blend                       # Main Blender project template
-└── README.md                      # This documentation
-```
+The application follows a strictly defined, multi-step workflow. It is built as a distributed architecture consisting of a desktop client, a REST API backend, and an automated 3D modeling layer.
+
+1. Upload and Ingestion: The user selects a 2D floor plan image (PNG or JPG format) using the PyQt5 desktop client. The client securely transmits the image to the Flask backend API.
+2. Computer Vision Analysis: The backend triggers a processing pipeline that utilizes OpenCV. It applies noise reduction and thresholding, then searches for geometric contours and parallel lines to identify the location, length, and orientation of structural walls and doorways.
+3. Optical Character Recognition: If enabled, Tesseract OCR analyzes the image to extract textual information. Custom parsers filter this data to identify room names and dimensional measurements.
+4. Database Storage: The structural coordinates and text metadata are persisted into a PostgreSQL database, establishing a unified source of truth for the floor plan.
+5. Headless 3D Generation: Upon request, the backend spawns a headless Blender process. A custom Blender Python script connects to the database output, calculates the appropriate 3D coordinates, and generates meshes for every detected wall and door.
+6. Export and Visualization: Blender exports the completed scene as a GLB or FBX file. This file can be downloaded through the desktop client and directly imported into Unity for a first-person interactive walkthrough.
 
 ---
 
-## Prerequisites & Installation
+## Directory and File Breakdown
 
-To run the analysis scripts (`detector_gui.py` and `line_detector.py`), you need Python 3 installed with a few dependencies.
+The project repository is strictly modularized to separate concerns across the frontend interface, backend logic, and game engine visualization.
 
-1. **Install dependencies:**
-   ```bash
-   pip install opencv-python numpy PyQt5
-   ```
+### 1. Desktop Client (desktop/)
+This directory contains the PyQt5 application that serves as the primary user interface.
+* app.py: The main executable script. Running this file launches the desktop application.
+* api_client.py: The networking layer. It handles all HTTP requests to the backend API, ensuring the UI remains decoupled from backend logic.
+* workers.py: Contains background thread classes. These ensure that network requests and long-running generation tasks do not freeze the graphical interface.
+* ui/main_window.py: Defines the structural layout, buttons, and progress bars of the user interface.
+* ui/styles.qss: The Qt stylesheet that provides the dark-mode aesthetic for the application.
 
-*(Note: The Blender scripts run entirely within Blender's built-in Python environment, which already includes `bpy`, `bmesh`, `math`, and `json`. You do not need to install anything special inside Blender!)*
+### 2. Backend Services (backend/)
+This directory houses the Flask REST API and all data processing pipelines.
+* app.py and config.py: These files initialize the Flask web server, handle environment variables, and configure the database connection.
+* api/ and controllers/: These modules define the web endpoints (such as POST /api/v1/projects) and handle input validation and HTTP responses.
+* services/: This layer contains the core business logic, orchestrating the flow between the API endpoints and the processing pipelines.
+* models/: Contains SQLAlchemy schemas that map Python objects to PostgreSQL database tables.
+* cv/: The computer vision engine. It includes preprocessing routines and detection algorithms for extracting geometry from the uploaded image.
+* ocr/: The text extraction pipeline. It integrates Tesseract and includes specific parsers for identifying architectural dimensions and room labels.
+* blender/: The 3D automation layer. It contains a runner script that manages the Blender subprocess, alongside the actual Blender Python script (generate_scene.py) that builds the meshes.
+
+### 3. Unity Integration (unity/)
+This directory contains C# scripts intended to be dropped into a Unity project for rendering the exported models.
+* FirstPersonController.cs: A standard player movement script providing keyboard and mouse controls for navigating the 3D space.
+* RuntimeModelLoader.cs and SceneBootstrap.cs: Scripts that automate the process of loading the exported GLB file into the Unity scene at runtime.
+
+### 4. Legacy Code (legacy/)
+This directory contains the original, monolithic prototype scripts. They are retained for historical reference and documentation purposes but are not executed by the current system.
 
 ---
+
+## Installation and Setup
+
+1. Clone the repository:
+   git clone <repo-url>
+   cd arcsight3d
+
+2. Backend Setup:
+   Create a virtual environment and install the required Python dependencies:
+   python -m venv venv
+   
+   # For Windows:
+   .\venv\Scripts\activate  
+   
+   # For Mac/Linux:
+   source venv/bin/activate
+   
+   pip install -r requirements.txt
+
+3. Environment Variables:
+   Copy the .env.example file to a new file named .env. Ensure that the TESSERACT_CMD and BLENDER_EXECUTABLE variables point to the correct absolute paths on your system if they are not available in your global PATH.
+
+4. Database Setup (PostgreSQL):
+   If you have Docker installed, you can initialize the database using the provided compose file:
+   docker-compose up -d postgres
+   flask db init
+   flask db migrate -m "Initial migration"
+   flask db upgrade
 
 ## Usage Guide
 
-### Step 1: Detect Structural Elements
+1. Start the Backend Server:
+   Open a terminal, activate your virtual environment, and execute the following:
+   set FLASK_APP=backend.app
+   set FLASK_ENV=development
+   flask run --host=0.0.0.0 --port=5000
 
-#### Option A: Using the GUI (Contours)
-1. Run the GUI:
-   ```bash
-   python detector_gui.py
-   ```
-2. Click **Select Blueprint** and choose one of the blueprints from the `samples/` directory (e.g. `samples/print.png` or your own floor plan).
-3. Click **Start Processing**. When complete, it generates `detected_objects.json` in the project folder.
+2. Start the Desktop Client:
+   Open a second terminal, activate the virtual environment, and execute:
+   python -m desktop.app
 
-#### Option B: Using the CLI (Lines)
-1. Run the script (defaults to `samples/print.png` if no argument is passed):
-   ```bash
-   python line_detector.py path/to/your/blueprint.png
-   ```
-2. It processes the image and outputs `line_coordinates.json` in the project folder.
+3. Using the Interface:
+   In the desktop application, provide a project name and select a blueprint image. Click "Upload & Process" to begin the computer vision analysis. Once the status indicates completion, click "Generate 3D Model" to trigger the Blender export. The final model will be saved in the exports/ directory.
 
 ---
 
-### Step 2: Reconstruct in Blender
+## Limitations and Future Improvements
 
-1. Open your Blender application.
-2. Open `3D.blend` or create a new empty file and save it in the `arcsight3d` folder (saving is important so Blender knows where to look for the JSON files!).
-3. Switch your Blender workspace layout to **Scripting**.
-4. Click **Open** in the Text Editor and select either `blender_contour_builder.py` or `blender_line_builder.py`.
-5. Click the **Run Script** button (play icon) at the top right of the Text Editor.
-6. The script clears any previous run meshes and automatically populates your scene with the 3D reconstructed geometry.
-
-*Tip: To view the procedural map layout example, load and run `blender_procedural_map.py` instead.*
-
----
-
-## Customization & Parameters
-
-You can open the scripts in any editor to fine-tune the parameters:
-* **Scale Factor (`scale`):** Both Blender scripts downscale pixel units to Blender meters (default is `scale = 0.05`, meaning 20 pixels = 1 Blender meter). Adjust this if your model is too large or too small.
-* **Canny Thresholds:** In `line_detector.py`, edit the `cv2.Canny(blurred, 50, 150)` thresholds to capture more or fewer edges.
-* **Aspect Ratio Classification:** In `detector_gui.py`, change `w / h > 3.0` to adjust how strict the aspect ratio is when distinguishing long walls from square door enclosures.
+* Image Quality Dependency: The accuracy of the wall and door detection relies heavily on the clarity and contrast of the uploaded blueprint. Cluttered or heavily stylized hand-drawn plans may yield inaccurate geometry.
+* OCR Reliability: Tesseract's ability to extract text is constrained by the resolution of the image and the orientation of the text within the blueprint.
+* Unity GLB Loading: Unity does not natively support runtime loading of GLB files. We recommend installing the GLTFast package via the Unity Package Manager to ensure the runtime loader scripts function as intended.
+* Future Roadmap: We plan to replace the geometric heuristic algorithms with machine learning models, such as YOLO, for more robust object classification, and to improve the detection of closed room polygons for automatic floor generation.
